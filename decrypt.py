@@ -2,6 +2,8 @@ import serial
 import binascii
 import argparse
 
+
+from Cryptodome.Cipher import AES
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import (Cipher, algorithms, modes)
 from cryptography.exceptions import InvalidTag
@@ -234,15 +236,18 @@ class SmartyProxy():
 
     # Do the actual decryption (AES-GCM)
     def decrypt(self, key, additional_data, iv, payload, gcm_tag):
-        decryptor = Cipher(
-            algorithms.AES(key),
-            modes.GCM(iv, gcm_tag, 12),
-            backend=default_backend()
-        ).decryptor()
-
-        decryptor.authenticate_additional_data(additional_data)
-
-        return decryptor.update(payload) + decryptor.finalize()
+    #        decryptor = Cipher(
+    #            algorithms.AES(key),
+    #            modes.GCM(iv, gcm_tag, 12),
+    #            backend=default_backend()
+    #        ).decryptor()
+    #
+    #        decryptor.authenticate_additional_data(additional_data)##
+    #
+    #        return decryptor.update(payload) + decryptor.finalize()
+        cipher = AES.new(key, AES.MODE_GCM, iv, mac_len=12)
+        cipher.update(additional_data)
+        return cipher.decrypt(payload)
 
     # Write the decrypted data to a serial port (e.g. one created with socat)
     def write_to_serial_port(self, decryption):
