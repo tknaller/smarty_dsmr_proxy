@@ -2,7 +2,9 @@
 
 This piece of code acts as a "proxy" between the Luxembourgish "Smarty" meters and existing open source software that analyse DSMR telegrams. E.g. [dsmr_parser](https://github.com/ndokter/dsmr_parser).
 
-I run this on a Raspberry Pi Zero W that I have connected to my "Smarty" meter using a serial-to-USB cable.
+I run this on a Linux PC that I have connected to my "Smarty" meter using a serial-to-USB cable.
+
+This version decrypts the **dlms/COSEM-Security 0** which is used in Austria for the Sagemcom smart meters.
 
 ## Before you start
 
