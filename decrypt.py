@@ -219,14 +219,15 @@ class SmartyProxy():
                 try:
                     parser = TelegramParser(telegram_specifications.V5)
 
-                    telegram = parser.parse(decryption.decode())
-                    for key in telegram:
-                        print("%s: %s" % (dsmr_parser.obis_name_mapping.EN[key], telegram[key]))
-                except:
-                    print("ERROR: Cannot parse DSMR Telegram")
-                    print(decryption)
+                    msg = decryption.decode('utf-8', errors='ignore')
+                    # have to convert between bytes and str otherwise parser fails
+                    telegram = parser.parse(str(bytes(msg, 'utf-8'), 'utf-8'))
+                    print(telegram)
+                except Exception as e:
+                    print("ERROR: Cannot parse DSMR Telegram" + repr(e))
+                    print(decryption.decode('utf-8', errors='ignore'))
             else:
-                print(decryption)
+                print(dedecryption.decode('utf-8', errors='ignore'))
 
 
             if self._args.serial_output_port:
