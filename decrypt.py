@@ -67,14 +67,22 @@ class SmartyProxy():
         self._payload = b""
         self._gcm_tag = b""
 
-    def main(self):
+    def main(self, cmdline=None, callback=None):
         parser = argparse.ArgumentParser()
         parser.add_argument('key', help="Decryption key")
         parser.add_argument('-i', '--serial-input-port', required=False, default="/dev/ttyUSB0", help="Input port. Defaults to /dev/ttyUSB0.")
         parser.add_argument('-o', '--serial-output-port', required=False, help="Output port, e.g. /dev/pts/2.")
         parser.add_argument('-a', '--aad', required=False, default="3000112233445566778899AABBCCDDEEFF", help="Additional authenticated data")
         parser.add_argument('-p', '--parse', action='store_true', required=False, default=False, help="Parse and pretty print DSMR v5 telegram")
-        self._args = parser.parse_args()
+        if cmdline:
+            self._args = parser.parse_args(cmdline)
+        else:
+            self._args = parser.parse_args()
+        # callback for processing of received data
+        # this will be called with dsmr_parser telegram if dsmr_parser is installed and -p option is used
+        # otherwise with string of the received message
+        #   callback(framecounter, dsmr_parser.telegram or text, error)
+        self._callback = callback
 
         self.connect()
         while True:
@@ -90,7 +98,10 @@ class SmartyProxy():
                 stopbits=serial.STOPBITS_ONE,
             )
         except (serial.SerialException, OSError) as err:
-            print("ERROR")
+            if self._callback:
+                self._callback(None, None, f'Serial error{repr(err)}')
+            else:
+                print(f'Serial error{repr(err)}')
 
     # Start processing incoming data
     def process(self):
@@ -143,9 +154,12 @@ class SmartyProxy():
                 self._next_state = self._next_state + 1
                 self._state = self.STATE_HAS_SYSTEM_TITLE_SUFFIX  # Ignore separator byte
             else:
-                print("ERROR, expected 0x82 separator byte not found, dropping frame")
+                msg = 'ERROR, expected 0x82 separator byte not found, dropping frame'
+                if self._callback:
+                    self._callback(None, None, msg)
+                else:
+                    print(msg)
                 self._state = self.STATE_IGNORING
- 
 
         # Additional byte after the system title has been read.
         elif self._state == self.STATE_HAS_SYSTEM_TITLE_SUFFIX:
@@ -165,8 +179,11 @@ class SmartyProxy():
         elif self._state == self.STATE_HAS_SEPARATOR:
             if self._buffer_length > self._next_state:
                 self._frame_counter += hex_input
-                print("Framecounter")
-                print(self._frame_counter)
+                if self._callback:
+                    self._callback(self._frame_counter, None, None)
+                else:
+                    print("Framecounter")
+                    print(self._frame_counter)
                 self._state = self.STATE_HAS_FRAME_COUNTER
                 self._next_state = self._next_state + self._data_length - 17
             else:
@@ -219,15 +236,26 @@ class SmartyProxy():
                 try:
                     parser = TelegramParser(telegram_specifications.V5)
 
-                    telegram = parser.parse(decryption.decode())
-                    for key in telegram:
-                        print("%s: %s" % (dsmr_parser.obis_name_mapping.EN[key], telegram[key]))
-                except:
-                    print("ERROR: Cannot parse DSMR Telegram")
-                    print(decryption)
+                    msg = decryption.decode('utf-8', errors='ignore')
+                    # have to convert between bytes and str otherwise parser fails
+                    telegram = parser.parse(str(bytes(msg, 'utf-8'), 'utf-8'))
+                    if self._callback:
+                        self._callback(None, telegram, None)
+                    else:
+                        print(telegram)
+                except Exception as e:
+                    msg = "ERROR: Cannot parse DSMR Telegram" + repr(e) + \
+                          "\n" + decryption.decode('utf-8', errors='ignore')
+                    if self._callback:
+                        self._callback(None, None, msg)
+                    else:
+                        print(msg)
             else:
-                print(decryption)
-
+                msg = decryption.decode('utf-8', errors='ignore')
+                if self._callback:
+                    self._callback(None, msg, None)
+                else:
+                    print(msg)
 
             if self._args.serial_output_port:
                 self.write_to_serial_port(decryption)

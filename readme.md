@@ -2,7 +2,11 @@
 
 This piece of code acts as a "proxy" between the Luxembourgish "Smarty" meters and existing open source software that analyse DSMR telegrams. E.g. [dsmr_parser](https://github.com/ndokter/dsmr_parser).
 
-I run this on a Raspberry Pi Zero W that I have connected to my "Smarty" meter using a serial-to-USB cable.
+I run this on a Linux PC that I have connected to my "Smarty" meter using a serial-to-USB cable.
+
+This version decrypts the **dlms/COSEM-Security 0** which is used in Austria for the Sagemcom smart meters.
+
+This version supports using decrypt.py as a library with a callback, which is called whenever a new message is available.
 
 ## Before you start
 
@@ -17,7 +21,43 @@ I run this on a Raspberry Pi Zero W that I have connected to my "Smarty" meter u
 * If the serial-to-usb cable is not accessible under /dev/ttyUSB0, you can use the "--serial-input-port" argument to specify which path to read from.
 * Push CTRL+C to exit
 
-## To connect your smart meter to dsmr_parser (or a Home Assistant instance) that runs remotely
+## Option 1: Use it as a library
+
+Install library dsmr_parser:
+```bash
+pip install dsmr_parser
+```
+
+Following python script can be used to readout and process the data
+
+```python
+import sys
+import dsmr_parser
+# change to path where you have stored decrypt.py
+sys.path.append('/notebooks/smartmeter/smarty_dsmr_proxy')
+import decrypt
+
+
+# this function gets called whenever a new message is available
+def callback(framecounter, telegram, error):
+    # only one if condition will be true for every call
+    if error:         # there was en error
+        print(f'Error {error}')
+    if framecounter:  # framecounter received
+        print(f'Framecounter {framecounter}')
+    if telegram:      # dsmr_telegram received, pretty print it
+        # pretty print whole message
+        print(f'Telegram {telegram}')
+        # simple access to individual items - see https://github.com/ndokter/dsmr_parser
+        print(f'Electricity usage: {telegram.CURRENT_ELECTRICITY_USAGE.value} {telegram.CURRENT_ELECTRICITY_USAGE.unit}')
+
+
+smarty_proxy = decrypt.SmartyProxy()
+# start infinite readout loop - provide configurations parameters: -p for processing and DECRYPTION_KEY
+smarty_proxy.main(['-p', DECRYPTION_KEY], callback)
+```
+
+## Option 2: Connect your smart meter to dsmr_parser (or a Home Assistant instance) that runs remotely
 
 Start socat to get a virtual serial port that is forwarded to a TCP connection on port 2001.
 **Please be aware that this way, the data from your smart meter is available unencrypted on your network!**
@@ -39,7 +79,7 @@ python3 decrypt.py KEY --serial-output-port=/dev/pts/2
 
 You can now configure dsmr_parser (or your Home Assistant instance) to use a TCP connection to the current device on port 2001.
 
-## To connect your smart meter to dsmr_reader, dsmr_parser (or a Home Assistant instance) that runs on the same machine
+### To connect your smart meter to dsmr_reader, dsmr_parser (or a Home Assistant instance) that runs on the same machine
 
 Start socat to get a virtual serial port that is connected to a second virtual serial port.
 ```
@@ -60,7 +100,7 @@ python3 decrypt.py KEY --serial-output-port=/dev/pts/2
 
 You can now configure dsmr_reader, dsmr_parser (or your Home Assistant instance) to connect to the second port from the previous output (in this example /dev/pts/3).
 
-## Make everything start up automatically
+### Make everything start up automatically
 
 There are different ways to achieve this. One of the easiest is to install "supervisord":
 
