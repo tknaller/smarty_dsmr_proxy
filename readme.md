@@ -23,9 +23,9 @@ This version supports using decrypt.py as a library with a callback, which is ca
 
 ## Option 1: Use it as a library
 
-Install library dsmr_parser:
+Install library dsmr_parser and AES decryption:
 ```bash
-pip install dsmr_parser
+pip install dsmr_parser pycryptodomex
 ```
 
 Following python script can be used to readout and process the data
